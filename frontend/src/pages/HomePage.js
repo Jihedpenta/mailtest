@@ -1,15 +1,105 @@
-import React, {useState, useEffect, useContext} from 'react'
+import React, {useState, useEffect, useContext,CSSProperties } from 'react'
 import AuthContext from '../context/AuthContext'
-import Papa from "papaparse";
-
-import { useCSVDownloader } from 'react-papaparse';
-import AddDeleteTableRows from "../components/Table";
+import CustomTable from '../components/Table'
+import { useCSVDownloader,useCSVReader,
+    lightenDarkenColor,
+    formatFileSize, } from 'react-papaparse';
 
 // Allowed extensions for input file
 const allowedExtensions = ["csv"];
 
+const GREY = '#CCC';
+const GREY_LIGHT = 'rgba(255, 255, 255, 0.4)';
+const DEFAULT_REMOVE_HOVER_COLOR = '#A01919';
+const REMOVE_HOVER_COLOR_LIGHT = lightenDarkenColor(
+  DEFAULT_REMOVE_HOVER_COLOR,
+  40
+);
+const GREY_DIM = '#686868';
+
+const styles = {
+  zone: {
+    alignItems: 'center',
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    borderColor: GREY,
+    borderRadius: 20,
+    display: 'flex',
+    flexDirection: 'column',
+    height: '100%',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  file: {
+    background: 'linear-gradient(to bottom, #EEE, #DDD)',
+    borderRadius: 20,
+    display: 'flex',
+    height: 120,
+    width: 120,
+    position: 'relative',
+    zIndex: 10,
+    flexDirection: 'column',
+    justifyContent: 'center',
+  },
+  info: {
+    alignItems: 'center',
+    display: 'flex',
+    flexDirection: 'column',
+    paddingLeft: 10,
+    paddingRight: 10,
+  },
+  size: {
+    backgroundColor: GREY_LIGHT,
+    borderRadius: 3,
+    marginBottom: '0.5em',
+    justifyContent: 'center',
+    display: 'flex',
+  },
+  name: {
+    backgroundColor: GREY_LIGHT,
+    borderRadius: 3,
+    fontSize: 12,
+    marginBottom: '0.5em',
+  },
+  progressBar: {
+    bottom: 14,
+    position: 'absolute',
+    width: '100%',
+    paddingLeft: 10,
+    paddingRight: 10,
+  },
+  zoneHover: {
+    borderColor: GREY_DIM,
+  },
+  default: {
+    borderColor: GREY,
+  } ,
+  remove: {
+    height: 23,
+    position: 'absolute',
+    right: 6,
+    top: 6,
+    width: 23,
+  } ,
+};
+
+
 
 const HomePage = () => {
+    const { CSVReader } = useCSVReader();
+    const [zoneHover, setZoneHover] = useState(false);
+    const [removeHoverColor, setRemoveHoverColor] = useState(
+      DEFAULT_REMOVE_HOVER_COLOR
+    );
+    const createData = (email, valid) => {
+        return { email, valid };
+      }
+
+    
+    const [rows, setRows] = useState([]);
+    const [valids, setValids] = useState([]);
+    const [nonvalids, setNonvalids] = useState([]);
+
     const { CSVDownloader, Type } = useCSVDownloader();
 
      // This state will store the parsed data
@@ -46,56 +136,64 @@ const HomePage = () => {
             setFile(inputFile);
         }
     };
-    const handleParse = () => {
+    const handleParse = (results ) => {
          
         // If user clicks the parse button without
         // a file we show a error
-        if (!file) return setError("Enter a valid file");
+        // if (!file) return setError("Enter a valid file");
  
         // Initialize a reader which allows user
         // to read any file or blob.
-        const reader = new FileReader();
+        // const reader = new FileReader();
          
         // Event listener on reader when the file
         // loads, we parse it and set the data.
-        reader.onload = async ({ target }) => {
-            let emails = [];
-            const csv = Papa.parse(target.result, { header: true });
-            const parsedData = csv?.data;
-            //parsedData.forEach(element => console.log(Object.values(element)[0].split(';')));
-            const columns = Object.keys(parsedData[0])[0].split(';');
-            //console.log(columns);
-            emails = emails.concat(columns)
+        // reader.onload = async ({ target }) => {
+            // let emails = [];
+            // const csv = Papa.parse(target.result, { header: true });
+            // const parsedData = csv?.data;
+            // //parsedData.forEach(element => console.log(Object.values(element)[0].split(';')));
+            // const columns = Object.keys(parsedData[0])[0].split(';');
+            // //console.log(columns);
+            // emails = emails.concat(columns)
 
-            parsedData.forEach(element => emails = emails.concat(Object.values(element)[0].split(';')));
+            // parsedData.forEach(element => emails = emails.concat(Object.values(element)[0].split(';')));
             //console.log(parsedData[2]);
             //console.log(emails)
-
+            let emails = [];
+            console.log('---------------------------');
+            console.log(results['data']);
+            results['data'].forEach(elem => emails=emails.concat(elem));
+            console.log('console log mailss' ,emails);
+            console.log('---------------------------');
 
             emails.forEach(
-                async (elem)=>{
+                async (email)=>{
                     let response = await fetch('http://127.0.0.1:8000/api/verify_email/', {
                     method:'POST',
                     headers:{
                         'Content-Type':'application/json',
                         'Authorization':'Bearer ' + String(authTokens.access)
                         },
-                    body:JSON.stringify({'email':elem})
+                    body:JSON.stringify({'email':email})
 
                     })
                     let data = await response.json();
-                    rowsintab.push(<p>Email {elem} is {data['valid']}</p>)
+                    setRows(rows => [...rows, createData(email,  data['valid'] ? "Valid" : "non Valid ")]);
+                    if (data['valid']){
+                        setValids(valids => [...valids, {email}]);
+                    }else{
+                        setNonvalids(nonvalids => [...nonvalids, {email}]);
+                    }
 
-                    console.log(data['valid']);
-                    console.log(rowsintab.length);
 
                 }
             )
             //console.log(rowsintab);
             
             setData(emails);
-        };
-        reader.readAsText(file);
+        // };
+        // reader.readAsText(file);
     };
 
 
@@ -133,35 +231,115 @@ const HomePage = () => {
         <div>
             <p>You are logged to the home page!</p>
 
-            <label htmlFor="csvInput" style={{ display: "block" }}>
-                Enter CSV File
-            </label>
-            <input
-                onChange={handleFileChange}
-                id="csvInput"
-                name="file"
-                type="File"
-            />
             <div>
-                <button onClick={handleParse}>Parse</button>
+
+            <CSVReader
+      onUploadAccepted={(results) => {
+
+        handleParse(results);
+        setZoneHover(false);
+      }}
+      onDragOver={(event) => {
+        event.preventDefault();
+        setZoneHover(true);
+      }}
+      onDragLeave={(event) => {
+        event.preventDefault();
+        setZoneHover(false);
+      }}
+    >
+      {({
+        getRootProps,
+        acceptedFile,
+        ProgressBar,
+        getRemoveFileProps,
+        Remove,
+      }) => (
+        <>
+          <div
+            {...getRootProps()}
+            style={Object.assign(
+              {},
+              styles.zone,
+              zoneHover && styles.zoneHover
+            )}
+          >
+            {acceptedFile ? (
+              <>
+                <div style={styles.file}>
+                  <div style={styles.info}>
+                    <span style={styles.size}>
+                      {formatFileSize(acceptedFile.size)}
+                    </span>
+                    <span style={styles.name}>{acceptedFile.name}</span>
+                  </div>
+                  <div style={styles.progressBar}>
+                    <ProgressBar />
+                  </div>
+                  <div
+                    {...getRemoveFileProps()}
+                    style={styles.remove}
+                    onMouseOver={(event) => {
+                      event.preventDefault();
+                      setRemoveHoverColor(REMOVE_HOVER_COLOR_LIGHT);
+                    }}
+                    onMouseOut={(event) => {
+                      event.preventDefault();
+                      setRemoveHoverColor(DEFAULT_REMOVE_HOVER_COLOR);
+                    }}
+                  >
+                    <Remove color={removeHoverColor} />
+                  </div>
+                </div>
+              </>
+            ) : (
+              'Drop CSV file here or click to upload'
+            )}
+          </div>
+        </>
+      )}
+    </CSVReader>
+
+
+
+
+
+
             </div>
-            <div style={{ marginTop: "3rem" }}>
-                {/* {error ? error : rowsintab.map((elem) => elem)} */}
-{/*                   
-                {error ? error : data.map((col,
-                  idx) => <div key={idx}>{col}</div>)}
-                   */}
-            </div>
 
-            <ul>
-                {notes.map(note => (
-                    <li key={note.id} >{note.body}</li>
-                ))}
-            </ul>
 
-            <AddDeleteTableRows />
 
-            
+
+
+{rows.length > 0 ? <CustomTable rows={rows} /> : ''}
+
+{valids.length > 0 ? <CSVDownloader
+      type={Type.Button}
+      filename={'valid_emails'}
+      bom={true}
+      config={{
+        delimiter: ';',
+      }}
+      data={valids}
+    >
+      Download valid
+    </CSVDownloader> : ''}
+
+    {nonvalids.length > 0 ? <CSVDownloader
+      type={Type.Button}
+      filename={'non_valid_emails'}
+      bom={true}
+      config={{
+        delimiter: ';',
+      }}
+      data={nonvalids}
+    >
+      Download non valid
+    </CSVDownloader> : ''}
+
+{/* <CustomTable rows={rows} /> */}
+
+{/*             
             <CSVDownloader
       type={Type.Button}
       filename={'filename'}
@@ -169,35 +347,10 @@ const HomePage = () => {
       config={{
         delimiter: ';',
       }}
-      data={[
-        {
-          'Column 1': '1-1',
-          'Column 2': '1-2',
-          'Column 3': '1-3',
-          'Column 4': '1-4',
-        },
-        {
-          'Column 1': '2-1',
-          'Column 2': '2-2',
-          'Column 3': '2-3',
-          'Column 4': '2-4',
-        },
-        {
-          'Column 1': '3-1',
-          'Column 2': '3-2',
-          'Column 3': '3-3',
-          'Column 4': '3-4',
-        },
-        {
-          'Column 1': 4,
-          'Column 2': 5,
-          'Column 3': 6,
-          'Column 4': 7,
-        },
-      ]}
+      data={rows}
     >
       Download
-    </CSVDownloader>
+    </CSVDownloader> */}
         </div>
     )
 }
